@@ -1,0 +1,27 @@
+{
+  "name": "bilder-s3",
+  "version": "0.0.1",
+  "description": "S3 tasks for bilder",
+  "scripts": {
+    "test": "mocha specs/*.spec.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wunderlist/bilder-s3.git"
+  },
+  "contributors": [
+    "Aditya <aditya@netroy.in>"
+  ],
+  "author": "NetRoY <aditya@netroy.in> (http://netroy.in/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/wunderlist/bilder-s3/issues"
+  },
+  "dependencies": {
+    "colors": "~0.6.1",
+    "knox": "~0.8.6"
+  },
+  "devDependencies": {
+    "mocha": "~1.12.0"
+  }
+}
