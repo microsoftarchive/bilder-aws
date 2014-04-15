@@ -16,7 +16,6 @@
   "dependencies": {
     "colors": "~0.6.1",
     "knox": "^0.8.9",
-    "debounce": "0.0.3",
     "mime": "^1.2.11",
     "tmp": "0.0.23",
     "async": "^0.7.0"
