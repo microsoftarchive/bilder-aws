@@ -147,6 +147,7 @@ module.exports = function (grunt) {
 
     var options = this.options(defaults);
     var done = that.async();
+
     var files = grunt.file.expand({
       'cwd': options.baseDir
     }, that.data.src);
@@ -173,5 +174,5 @@ module.exports = function (grunt) {
     });
   }
 
-  grunt.registerTask('bilder/s3', 'Upload to S3 bucket', S3UploadTask);
+  grunt.registerMultiTask('bilder/s3', 'Upload to S3 bucket', S3UploadTask);
 };
