@@ -173,5 +173,5 @@ module.exports = function (grunt) {
     });
   }
 
-  grunt.registerTask('s3/upload', 'Upload to S3 bucket', S3SyncTask);
+  grunt.registerTask('bilder/s3', 'Upload to S3 bucket', S3UploadTask);
 };
