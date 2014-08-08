@@ -2,9 +2,8 @@ module.exports = function (grunt) {
 
   'use strict';
 
+  var spawn = require('child_process').spawn;
   var ec2 = require('ec2');
-  var SSHConnection = require('ssh2');
-
   var path = require('path');
 
   var async = grunt.util.async;
@@ -79,135 +78,45 @@ module.exports = function (grunt) {
     });
   }
 
-  function connectToServer (server, callback) {
-    var config = grunt.config.get('env');
-    var connection = new SSHConnection();
-
-    // when connected
-    connection.on('connect', function () {
-      grunt.log.debug('connected to ' + server.host);
-    });
-
-    // when ready to use
-    connection.on('ready', function () {
-      // validate the connection
-      grunt.log.debug('requesting uptime for vaildating connection');
-      connection.exec('uptime', function (err, stream) {
-        if (err) throw err;
-        // trace ssh output in debug mode
-        if (!!grunt.option('debug')) {
-          stream.on('data', function (message, extended) {
-            message = message.toString('utf8');
-            var token = 'D';
-            if (extended === 'stderr') {
-              token = 'E';
-              message = message.red;
-            }
-            grunt.log.writeln('[%s] ', token, message);
-          });
-        }
-        // cache the connection for reuse
-        server.connection = connection;
-        callback(null);
+  function debug (ssh) {
+    if (!!grunt.option('debug')) {
+      ssh.stdout.on('data', function (data) {
+        grunt.log.writeln('[D] ', data.toString('utf8'));
       });
-    });
-
-    // handle errors & disconnection
-    connection.on('error', function (err) {
-      server.connection = null;
-      grunt.log.warn('Failed to connect to ' + server.host);
-      callback(err);
-    });
-    connection.on('end', function () {
-      server.connection = null;
-      grunt.log.debug('Connection ended : ' + server.host);
-    });
-    connection.on('close', function () {
-      server.connection = null;
-      grunt.log.debug('Connection closed : ' + server.host);
-    });
-
-    // connect now
-    connection.connect({
-      'host': server.host,
-      'username': config.ssh.user,
-      'privateKey': config.ssh.key
-    });
+      ssh.stderr.on('data', function (data) {
+        grunt.log.writeln('[E] ', data.toString('utf8').red);
+      });
+    }
   }
 
-  function uploadFile (src, dest, server) {
+  function uploadFileCmd (src, dest, server) {
     return function (callback) {
+      grunt.log.debug('uploading to %s: %s => %s', server.id, src, dest);
       src = path.resolve(src);
-      // once we have a connection, upload the file(s)
-      function upload (err) {
-        if (err) throw err;
-        grunt.log.debug('uploading: %s => %s', src, dest);
-        // get a sftp handle
-        server.connection.sftp(function(err, sftp) {
-          if (err) throw err;
-          // and upload the file
-          sftp.fastPut(src, dest, function (err) {
-            if (err) throw err;
-            grunt.log.debug('uploaded: %s to %s', dest, server.host);
-            callback(null);
-          });
-        });
-      }
-
-      // if connection exists, re-use it
-      if (server.connection) {
-        upload();
-      }
-      // otherwise connect first
-      else {
-        connectToServer(server, upload);
-      }
+      var ssh = spawn('scp', [src, [server.host, dest].join(':')]);
+      debug(ssh);
+      ssh.on('close', function (code) {
+        if (code !== 0) {
+          grunt.log.fatal('failed uploading %s to %s', src, server.id);
+        }
+        grunt.log.ok(src, server.id);
+        callback(null);
+      });
     };
   }
 
-  function executeCommand (command, server) {
+  function executeCommandCmd (command, server) {
     return function (callback) {
-      // once we have a connection
-      function execute (err) {
-        if (err) throw err;
-        grunt.log.debug('executing: %s', command);
-        // execute the command
-        server.connection.exec(command, function(err, stream) {
-          if (err) throw err;
-          // trace ssh output in debug mode
-          if (!!grunt.option('debug')) {
-            stream.on('data', function (message, extended) {
-              message = message.toString('utf8');
-              var token = 'D';
-              if (extended === 'stderr') {
-                token = 'E';
-                message = message.red;
-              }
-              grunt.log.writeln('[%s] ', token, message);
-            });
-          }
-
-          // handle response
-          stream.on('exit', function (code) { //signal
-            if (code !== 0) {
-              grunt.log.warn('failed to run %s on %s', command, server.host);
-            } else {
-              grunt.log.debug('executed: %s on %s with code',
-                command, server.host, code);
-            }
-            callback(null);
-          });
-        });
-      }
-
-      // if connection exists, re-use it
-      if (server.connection) {
-        execute();
-      }
-      // otherwise connect first
-      else {
-        connectToServer(server, execute);
-      }
+      grunt.log.debug('executing %s on %s => %s', command, server.id);
+      var ssh = spawn('ssh', [server.host, command]);
+      debug(ssh);
+      ssh.on('close', function (code) {
+        if (code !== 0) {
+          grunt.log.fatal('failed executing %s on %s', command, server.id);
+        }
+        grunt.log.ok(command, server.id);
+        callback(null);
+      });
     };
   }
 
@@ -249,12 +158,12 @@ module.exports = function (grunt) {
           var uploads = Object.keys(options.uploads);
           uploads.forEach(function (src) {
             var dest = options.uploads[src];
-            actions.push(uploadFile(src, dest, server));
+            actions.push(uploadFileCmd(src, dest, server));
           });
           // enqueue command executions
           var commands = options.commands;
           commands.forEach(function (command) {
-            actions.push(executeCommand(command, server));
+            actions.push(executeCommandCmd(command, server));
           });
           // roll out
           async.series(actions, function (err) {
