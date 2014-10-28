@@ -58,6 +58,7 @@ module.exports = function (grunt) {
       }
       // for gzip'd files, create a temp file & upload that instead
       else if (options.gzip) {
+        grunt.log.debug('gzipping', local);
         gzipFile(local, function (err, gzFile) {
           args[1] = gzFile;
           upload.apply(null, args);
@@ -66,6 +67,7 @@ module.exports = function (grunt) {
       }
       // everything else, just upload it right away
       else {
+        grunt.log.debug('uploading %s to %s', local, remote);
         upload.apply(null, args);
       }
     });
@@ -86,7 +88,9 @@ module.exports = function (grunt) {
     upload.init({
       'key': options.key,
       'secret': options.secret,
-      'bucket': options.bucket
+      'bucket': options.bucket,
+      'region': options.region,
+      'style': 'virtualHosted'
     });
 
     var max = options.throttle;
